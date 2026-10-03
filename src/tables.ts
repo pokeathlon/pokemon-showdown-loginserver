@@ -67,7 +67,7 @@ export const discordLinks = loginDB.getTable<{
 	discordid: string,
 	userid: string,
 	time: number,
-}>('discord', 'discordid');
+}>('discord', 'userid');
 
 export const ladder = ladderDB.getTable<
 	LadderEntry

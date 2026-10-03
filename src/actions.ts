@@ -857,6 +857,15 @@ export const actions: { [k: string]: QueryHandler } = {
 		};
 	},
 
+	async 'discord/addname'(params) {
+		await this.requireServer();
+		const userid = toID(params.userid);
+		if (!userid || !params.username) {
+			throw new ActionError("Specify a userid and a username.");
+		}
+		return { actionsuccess: await Discord.addName(userid, params.username, params.ip || '') };
+	},
+
 	async getteams(params) {
 		this.verifyCrossDomainRequest();
 		const user = await this.getUser();

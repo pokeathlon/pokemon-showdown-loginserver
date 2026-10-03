@@ -136,28 +136,40 @@ export const Discord = new class {
 		return userid;
 	}
 
-	async getLinkedUser(discordid: string) {
-		const link = await tables.discordLinks.get(discordid);
+	async getLinkedUser(discordid: string): Promise<{ username: string } | null> {
+		const link = await tables.discordLinks.selectOne()`WHERE discordid = ${discordid} ORDER BY time`;
 		if (!link) return null;
 		const user = await tables.users.get(link.userid);
-		if (!user) await tables.discordLinks.delete(discordid);
-		return user || null;
+		if (user) return user;
+		await tables.discordLinks.delete(link.userid);
+		return this.getLinkedUser(discordid);
 	}
 
 	async link(discordid: string, username: string, ip: string) {
 		const userid = this.validateName(username);
+		if (await tables.discordLinks.selectOne()`WHERE discordid = ${discordid}`) {
+			throw new ActionError(`This Discord account is already linked to an account.`);
+		}
 		const user = await tables.users.insertIgnore({
 			userid, username, passwordhash: null, email: null, registertime: time(), ip,
 		});
 		if (!user.affectedRows) {
 			throw new ActionError(`Your username is already taken.`);
 		}
-		const link = await tables.discordLinks.insertIgnore({ discordid, userid, time: time() });
-		if (!link.affectedRows) {
-			await tables.users.delete(userid);
-			throw new ActionError(`This Discord account is already linked to an account.`);
-		}
+		await tables.discordLinks.set(userid, { discordid, time: time() });
 		return userid;
+	}
+
+	async addName(linkedid: string, username: string, ip: string) {
+		const link = await tables.discordLinks.get(linkedid);
+		if (!link) return false;
+		const userid = this.validateName(username);
+		const user = await tables.users.insertIgnore({
+			userid, username, passwordhash: null, email: null, registertime: time(), ip,
+		});
+		if (!user.affectedRows) return false;
+		await tables.discordLinks.set(userid, { discordid: link.discordid, time: time() });
+		return true;
 	}
 
 	async logIn(context: ActionContext, username: string, challstr: string) {
