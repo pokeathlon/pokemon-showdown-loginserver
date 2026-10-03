@@ -268,8 +268,6 @@ export class Session {
 					return ';;@gmail';
 				}
 				return Config.discordonly ? ';;@discord' : ';';
-			} else if (Config.discordonly && !user.loggedIn) {
-				return ';;@discord';
 			} else {
 				// Unregistered username.
 				userType = '1';
