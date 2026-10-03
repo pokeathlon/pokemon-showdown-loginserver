@@ -9,6 +9,7 @@ import * as pathModule from 'node:path';
 import * as crypto from 'node:crypto';
 import * as module from 'node:module';
 import { Config } from './config-loader.ts';
+import { Discord } from './discord.ts';
 import { Ladder, type LadderEntry } from './ladder.ts';
 import { OAuth } from './oauth.ts';
 import { Replays } from './replays.ts';
@@ -145,6 +146,7 @@ function exportTeam(team: string) {
 
 export const actions: { [k: string]: QueryHandler } = {
 	async register(params) {
+		if (Config.discordonly) await this.requireServer();
 		this.verifyCrossDomainRequest();
 		const { username, password, cpassword, captcha } = params;
 		if (!username) {
@@ -205,6 +207,7 @@ export const actions: { [k: string]: QueryHandler } = {
 	},
 
 	async login(params) {
+		if (Config.discordonly) await this.requireServer();
 		this.setPrefix('');
 		const challengeprefix = this.verifyCrossDomainRequest();
 		if (this.request.method !== 'POST') {
@@ -349,6 +352,7 @@ export const actions: { [k: string]: QueryHandler } = {
 	},
 
 	async changepassword(params) {
+		if (Config.discordonly) await this.requireServer();
 		if (this.request.method !== 'POST') {
 			throw new ActionError(`'changepassword' requests can only be made with POST data.`);
 		}
@@ -788,6 +792,69 @@ export const actions: { [k: string]: QueryHandler } = {
 			throw new ActionError("You're not logged in.");
 		}
 		return OAuth.revoke(user.id, params.uri);
+	},
+
+	'discord/login'(params) {
+		const challstr = params.challstr || params.challenge || "";
+		if (!challstr) {
+			throw new ActionError("No challstr provided.");
+		}
+		this.response.statusCode = 302;
+		this.setHeader('Location', Discord.getAuthorizeURL(challstr, params.serverid || ""));
+		return '';
+	},
+
+	async 'discord/callback'(params) {
+		if (params.error) {
+			throw new ActionError(`Discord login failed: ${params.error}`);
+		}
+		if (!params.code) {
+			throw new ActionError("No code provided.");
+		}
+		const { challstr, serverid } = Discord.unseal(params.state);
+		params.serverid = serverid;
+
+		const accessToken = await Discord.exchangeCode(params.code);
+		const [, discordUser] = await Promise.all([
+			Discord.requireGuildMember(accessToken), Discord.fetchUser(accessToken),
+		]);
+		const account = await Discord.getLinkedUser(discordUser.id);
+		const values = account ? {
+			username: account.username,
+			assertion: await Discord.logIn(this, account.username, challstr),
+		} : {
+			ticket: Discord.seal({ discordid: discordUser.id, challstr, serverid }),
+			suggestion: Discord.suggestName(discordUser),
+		};
+
+		this.response.setHeader('Content-Type', 'text/html');
+		try {
+			const content = Discord.renderCallbackPage(values);
+			this.response.setHeader('Content-Length', Buffer.byteLength(content));
+			return content;
+		} catch (e) {
+			Server.crashlog(e, "discord/callback", params);
+			return "<body>The Discord login page could not be served at this time. Please try again later.</body>";
+		}
+	},
+
+	async 'discord/api/register'(params) {
+		if (this.request.method !== 'POST') {
+			throw new ActionError("Registering a Discord account requires POST.");
+		}
+		if (!OAuth.isSameOriginRequest(this.request.headers)) {
+			throw new ActionError("Registering a Discord account requires a same-origin request.");
+		}
+		const { discordid, challstr, serverid } = Discord.unseal(params.ticket);
+		params.serverid = serverid;
+		const username = params.username || "";
+		const userid = await Discord.link(discordid, username, this.getIp());
+		const assertion = await Discord.logIn(this, username, challstr);
+		return {
+			actionsuccess: !assertion.startsWith(';'),
+			assertion,
+			curuser: { loggedin: true, username, userid },
+		};
 	},
 
 	async getteams(params) {

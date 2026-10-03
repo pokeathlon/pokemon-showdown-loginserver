@@ -52,6 +52,12 @@ exports.friendsdb = null;
 /** For 2FA verification. */
 exports.gapi_clientid = '';
 
+/** @type {{clientid: string, clientsecret: string, redirecturi: string, guildid?: string | null} | null} */
+exports.discord = null;
+
+/** @type {boolean} */
+exports.discordonly = false;
+
 /** Terms banned in names
  * @type {string[]}
  */
