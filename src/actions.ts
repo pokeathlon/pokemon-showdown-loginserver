@@ -847,7 +847,6 @@ export const actions: { [k: string]: QueryHandler } = {
 		}
 		const { discordid, challstr, serverid } = Discord.unseal(params.ticket);
 		params.serverid = serverid;
-		if (!discordid) throw new ActionError("Your Discord login could not be verified. Please try again.");
 		const username = params.username || "";
 		const userid = await Discord.link(discordid, username, this.getIp());
 		const assertion = await Discord.logIn(this, username, challstr);
@@ -867,27 +866,26 @@ export const actions: { [k: string]: QueryHandler } = {
 		return { actionsuccess: await Discord.addName(userid, params.username, params.ip || '') };
 	},
 
-	async 'discord/createtoken'(params) {
+	async 'discord/createcode'(params) {
 		const user = await this.getUser();
 		if (!user.isSysop()) throw new ActionError("Access denied.");
 		const account = await tables.users.get(toID(params.userid));
 		if (!account) throw new ActionError("That user does not exist.");
-		const token = Discord.seal({ loginas: account.userid });
-		return { url: `https://${this.request.headers.host!}/api/discord/token?token=${token}` };
+		return { code: Discord.makeLoginCode(account.userid) };
 	},
 
-	async 'discord/token'(params) {
+	async 'discord/code'(params) {
 		if (this.request.method !== 'POST') {
-			this.setHeader('Content-Type', 'text/html');
-			return Discord.renderTokenPage(params.token);
+			throw new ActionError("Logging in with a code requires POST.");
 		}
-		const account = await tables.users.get(Discord.useLoginToken(params.token));
+		const account = await tables.users.get(Discord.useLoginCode(params.code || ''));
 		if (!account) throw new ActionError("That user does not exist.");
-		await this.session.createSession(account.username);
-		await this.session.setSid();
-		this.response.statusCode = 302;
-		this.setHeader('Location', '/');
-		return '';
+		const assertion = await Discord.logIn(this, account.username, params.challstr || '');
+		return {
+			actionsuccess: !assertion.startsWith(';'),
+			assertion,
+			curuser: { loggedin: true, username: account.username, userid: account.userid },
+		};
 	},
 
 	async getteams(params) {

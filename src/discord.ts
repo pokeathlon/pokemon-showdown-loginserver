@@ -20,7 +20,9 @@ export const Discord = new class {
 	readonly tokenURL = 'https://discord.com/api/oauth2/token';
 	readonly userURL = 'https://discord.com/api/users/@me';
 	readonly ticketTime = 10 * 60;
-	readonly usedTokens = new Set<string>();
+	readonly codeChars = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+	readonly loginCodes = new Map<string, { userid: string, time: number }>();
+	codeAttempts = { time: 0, count: 0 };
 
 	readonly callbackPage = readFileSync(
 		import.meta.dirname + "/public/discord-callback.html",
@@ -64,21 +66,25 @@ export const Discord = new class {
 		return payload;
 	}
 
-	useLoginToken(token?: string) {
-		const { loginas } = this.unseal(token);
-		if (!loginas || this.usedTokens.has(token!)) {
-			throw new ActionError("This login link is invalid or was already used.");
-		}
-		this.usedTokens.add(token!);
-		return loginas;
+	makeLoginCode(userid: string) {
+		let code = '';
+		for (let i = 0; i < 8; i++) code += this.codeChars[crypto.randomInt(this.codeChars.length)];
+		this.loginCodes.set(code, { userid, time: time() });
+		return `${code.slice(0, 4)}-${code.slice(4)}`;
 	}
 
-	renderTokenPage(token?: string) {
-		const { loginas } = this.unseal(token);
-		if (!loginas) throw new ActionError("This login link is invalid or was already used.");
-		return `<meta name="viewport" content="width=device-width" /><form method="post">` +
-			`<input type="hidden" name="token" value="${escapeHTML(token!)}" />` +
-			`<button type="submit">Log in as ${escapeHTML(loginas)}</button></form>`;
+	useLoginCode(code: string) {
+		if (time() - this.codeAttempts.time > 60) this.codeAttempts = { time: time(), count: 0 };
+		if (++this.codeAttempts.count > 30) {
+			throw new ActionError("Too many login code attempts. Please try again in a minute.");
+		}
+		code = code.toUpperCase().replace(/[^0-9A-Z]/g, '');
+		const login = this.loginCodes.get(code);
+		this.loginCodes.delete(code);
+		if (!login || time() - login.time > this.ticketTime) {
+			throw new ActionError("That login code is invalid or expired.");
+		}
+		return login.userid;
 	}
 
 	getAuthorizeURL(challstr: string, serverid: string) {
