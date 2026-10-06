@@ -20,6 +20,7 @@ export const Discord = new class {
 	readonly tokenURL = 'https://discord.com/api/oauth2/token';
 	readonly userURL = 'https://discord.com/api/users/@me';
 	readonly ticketTime = 10 * 60;
+	readonly usedTokens = new Set<string>();
 
 	readonly callbackPage = readFileSync(
 		import.meta.dirname + "/public/discord-callback.html",
@@ -61,6 +62,15 @@ export const Discord = new class {
 			throw new ActionError("Your Discord login expired. Please try again.");
 		}
 		return payload;
+	}
+
+	useLoginToken(token?: string) {
+		const { loginas } = this.unseal(token);
+		if (!loginas || this.usedTokens.has(token!)) {
+			throw new ActionError("This login link is invalid or was already used.");
+		}
+		this.usedTokens.add(token!);
+		return loginas;
 	}
 
 	getAuthorizeURL(challstr: string, serverid: string) {
