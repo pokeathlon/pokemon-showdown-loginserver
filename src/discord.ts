@@ -73,6 +73,14 @@ export const Discord = new class {
 		return loginas;
 	}
 
+	renderTokenPage(token?: string) {
+		const { loginas } = this.unseal(token);
+		if (!loginas) throw new ActionError("This login link is invalid or was already used.");
+		return `<meta name="viewport" content="width=device-width" /><form method="post">` +
+			`<input type="hidden" name="token" value="${escapeHTML(token!)}" />` +
+			`<button type="submit">Log in as ${escapeHTML(loginas)}</button></form>`;
+	}
+
 	getAuthorizeURL(challstr: string, serverid: string) {
 		const config = this.getConfig();
 		const url = new URL(this.authorizeURL);

@@ -877,6 +877,10 @@ export const actions: { [k: string]: QueryHandler } = {
 	},
 
 	async 'discord/token'(params) {
+		if (this.request.method !== 'POST') {
+			this.setHeader('Content-Type', 'text/html');
+			return Discord.renderTokenPage(params.token);
+		}
 		const account = await tables.users.get(Discord.useLoginToken(params.token));
 		if (!account) throw new ActionError("That user does not exist.");
 		await this.session.createSession(account.username);
