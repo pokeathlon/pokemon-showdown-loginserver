@@ -874,6 +874,23 @@ export const actions: { [k: string]: QueryHandler } = {
 		return { code: Discord.makeLoginCode(account.userid) };
 	},
 
+	async 'discord/servercode'(params) {
+		await this.requireServer();
+		const { discordid, username } = params;
+		if (!discordid || !username) {
+			throw new ActionError("Specify a discordid and a username.");
+		}
+		if (!await Discord.getLinkedUser(discordid)) {
+			const userid = await Discord.link(discordid, username, params.ip || '');
+			return { code: Discord.makeLoginCode(userid), registered: true };
+		}
+		const link = await tables.discordLinks.get(toID(username));
+		if (link?.discordid !== discordid || !await tables.users.get(link.userid)) {
+			throw new ActionError(`${username} isn't one of your names.`);
+		}
+		return { code: Discord.makeLoginCode(link.userid), registered: false };
+	},
+
 	async 'discord/code'(params) {
 		if (this.request.method !== 'POST') {
 			throw new ActionError("Logging in with a code requires POST.");
