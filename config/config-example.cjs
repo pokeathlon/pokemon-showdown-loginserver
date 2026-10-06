@@ -52,7 +52,7 @@ exports.friendsdb = null;
 /** For 2FA verification. */
 exports.gapi_clientid = '';
 
-/** @type {{clientid: string, clientsecret: string, redirecturi: string, guildid?: string | null} | null} */
+/** @type {{clientid: string, clientsecret: string, redirecturi: string} | null} */
 exports.discord = null;
 
 /** @type {boolean} */

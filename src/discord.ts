@@ -93,13 +93,9 @@ export const Discord = new class {
 		url.searchParams.set('client_id', config.clientid);
 		url.searchParams.set('redirect_uri', config.redirecturi);
 		url.searchParams.set('response_type', 'code');
-		url.searchParams.set('scope', config.guildid ? 'identify guilds.members.read' : 'identify');
+		url.searchParams.set('scope', 'identify');
 		url.searchParams.set('state', this.seal({ challstr, serverid }));
 		return url.toString();
-	}
-
-	fetchAPI(url: string, accessToken: string) {
-		return fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
 	}
 
 	async exchangeCode(code: string) {
@@ -123,21 +119,12 @@ export const Discord = new class {
 	}
 
 	async fetchUser(accessToken: string): Promise<DiscordUser> {
-		const response = await this.fetchAPI(this.userURL, accessToken);
+		const response = await fetch(this.userURL, { headers: { Authorization: `Bearer ${accessToken}` } });
 		const data = response.ok ? await response.json() as Partial<DiscordUser> : null;
 		if (!data?.id || !data.username) {
 			throw new ActionError("Could not read your Discord account. Please try again.");
 		}
 		return { id: data.id, username: data.username, global_name: data.global_name || null };
-	}
-
-	async requireGuildMember(accessToken: string) {
-		const { guildid } = this.getConfig();
-		if (!guildid) return;
-		const url = `${this.userURL}/guilds/${encodeURIComponent(guildid)}/member`;
-		if (!(await this.fetchAPI(url, accessToken)).ok) {
-			throw new ActionError("You must be a member of this server's Discord to log in.");
-		}
 	}
 
 	suggestName(user: DiscordUser) {

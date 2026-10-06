@@ -815,9 +815,7 @@ export const actions: { [k: string]: QueryHandler } = {
 		params.serverid = serverid;
 
 		const accessToken = await Discord.exchangeCode(params.code);
-		const [, discordUser] = await Promise.all([
-			Discord.requireGuildMember(accessToken), Discord.fetchUser(accessToken),
-		]);
+		const discordUser = await Discord.fetchUser(accessToken);
 		const account = await Discord.getLinkedUser(discordUser.id);
 		const values = account ? {
 			username: account.username,
@@ -864,6 +862,15 @@ export const actions: { [k: string]: QueryHandler } = {
 			throw new ActionError("Specify a userid and a username.");
 		}
 		return { actionsuccess: await Discord.addName(userid, params.username, params.ip || '') };
+	},
+
+	async 'discord/names'(params) {
+		await this.requireServer();
+		const discordid = /^\d+$/.test(params.userid || '') ? params.userid :
+			(await tables.discordLinks.get(toID(params.userid)))?.discordid;
+		if (!discordid) return { names: [] };
+		const links = await tables.discordLinks.selectAll(['userid'])`WHERE discordid = ${discordid} ORDER BY time`;
+		return { discordid, names: links.map(link => link.userid) };
 	},
 
 	async 'discord/createcode'(params) {
