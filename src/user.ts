@@ -12,10 +12,11 @@ import { Config } from './config-loader.ts';
 import * as crypto from 'node:crypto';
 import * as gal from 'google-auth-library';
 import { SQL } from './database.ts';
+import { Discord } from './discord.ts';
 import { ActionError, type ActionContext } from './server.ts';
 import { toID, time, signAsync } from './utils.ts';
 import {
-	discordLinks, ladder, loginthrottle, loginattempts, sessions, users, usermodlog,
+	ladder, loginthrottle, loginattempts, sessions, users, usermodlog,
 } from './tables.ts';
 
 const SID_DURATION = 2 * 7 * 24 * 60 * 60;
@@ -206,10 +207,7 @@ export class Session {
 			forceUsertype = '5';
 		}
 		let userType;
-		const ownsName = user.loggedIn === userid || !!user.loggedIn && !!await discordLinks.selectOne()`
-			WHERE userid = ${userid} AND discordid = (
-				SELECT discordid FROM "${discordLinks.name}" WHERE userid = ${user.loggedIn}
-			)`;
+		const ownsName = await Discord.ownsName(user.loggedIn, userid);
 		const userData = ownsName ? await users.get(userid, SQL`banstate, registertime, logintime`) : null;
 		const { banstate, group, registertime, logintime } = userData || {
 			banstate: 0, registertime: 0, logintime: 0, group: 0,

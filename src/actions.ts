@@ -1219,7 +1219,8 @@ export const actions: { [k: string]: QueryHandler } = {
 		if (params.page && before) {
 			throw new ActionError(`Cannot set both "page" and "before", please choose one method of pagination`);
 		}
-		if (!(user.isSysop() || usernames.includes(user.id))) {
+		const owned = await Promise.all(usernames.map(id => Discord.ownsName(user.id, id)));
+		if (!(user.isSysop() || owned.includes(true))) {
 			throw new ActionError(`Access denied: You must be logged in as a username you're searching for.`);
 		}
 

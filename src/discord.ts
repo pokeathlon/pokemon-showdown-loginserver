@@ -156,6 +156,13 @@ export const Discord = new class {
 		return this.getLinkedUser(discordid);
 	}
 
+	async ownsName(loggedIn: string, userid: string) {
+		return loggedIn === userid || !!loggedIn && !!await tables.discordLinks.selectOne()`
+			WHERE userid = ${userid} AND discordid = (
+				SELECT discordid FROM "${tables.discordLinks.name}" WHERE userid = ${loggedIn}
+			)`;
+	}
+
 	async link(discordid: string, username: string, ip: string) {
 		const userid = this.validateName(username);
 		if (await tables.discordLinks.selectOne()`WHERE discordid = ${discordid}`) {
